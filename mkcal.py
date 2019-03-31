@@ -70,43 +70,32 @@ def calendar(data, filtered_bands):
     itercolors = iter(COLORS)
     colormap = defaultdict(lambda: next(itercolors))
 
-    if filtered_bands == []:
-        for startdt, enddt, bandname, stagename in data:
-            event = Event()
-
-            event.add('uid', '{}/{}@wacken'.format(uuid.uuid1(), '0'))
-            event.add('summary', '{} / {}'.format(bandname, stagename))
-            event.add('description', '')
-            event.add('dtstart', startdt.datetime)
-            event.add('dtend', enddt.datetime)
-            event.add('dtstamp', now)
-            event.add('created', now)
-            event.add('last-modified', now)
-            event.add('location', 'Wacken, Germany')
-            event.add('class', 'PUBLIC')
-            event.add('color', colormap[stagename])
-            event.add('categories', colormap[stagename])
-
-            cal.add_component(event)
+    if filtered_bands is None:
+        filtered_data = data
     else:
-        for startdt, enddt, bandname, stagename in data:
-            if bandname in filtered_bands:
-                event = Event()
+        filtered_data = (
+            (startdt, enddt, bandname, stagename)
+            for startdt, enddt, bandname, stagename in data
+            if bandname.strip() in filtered_bands
+        )
 
-                event.add('uid', '{}/{}@wacken'.format(uuid.uuid1(), '0'))
-                event.add('summary', '{} / {}'.format(bandname, stagename))
-                event.add('description', '')
-                event.add('dtstart', startdt.datetime)
-                event.add('dtend', enddt.datetime)
-                event.add('dtstamp', now)
-                event.add('created', now)
-                event.add('last-modified', now)
-                event.add('location', 'Wacken, Germany')
-                event.add('class', 'PUBLIC')
-                event.add('color', colormap[stagename])
-                event.add('categories', colormap[stagename])
+    for startdt, enddt, bandname, stagename in filtered_data:
+        event = Event()
 
-                cal.add_component(event)
+        event.add('uid', '{}/{}@wacken'.format(uuid.uuid1(), '0'))
+        event.add('summary', '{} / {}'.format(bandname, stagename))
+        event.add('description', '')
+        event.add('dtstart', startdt.datetime)
+        event.add('dtend', enddt.datetime)
+        event.add('dtstamp', now)
+        event.add('created', now)
+        event.add('last-modified', now)
+        event.add('location', 'Wacken, Germany')
+        event.add('class', 'PUBLIC')
+        event.add('color', colormap[stagename])
+        event.add('categories', colormap[stagename])
+
+        cal.add_component(event)
 
     return cal
 
@@ -123,26 +112,30 @@ def download(f):
 
 
 if __name__ == '__main__':
-    if not os.path.isfile(sys.argv[1]):
-        with open(sys.argv[1], 'wb') as f:
+    html_filename, command, *extra_args = sys.argv[1:]
+    if not os.path.isfile(html_filename):
+        with open(html_filename, 'wb') as f:
             download(f)
 
-    with open(sys.argv[1], 'r') as f:
+    with open(html_filename, 'r') as f:
         data = main(f)
 
-    if sys.argv[2] == 'rebuild':
-        with open('complete_bandlist.txt', 'w') as f:
-            for bandname in data:
-                f.write(bandname[2] + '\n')
-        sys.exit()
+    if command == 'rebuild':
+        output_filename = extra_args[0] if extra_args else 'complete_bandlist.txt'
+        with open(output_filename, 'w') as f:
+            for item in data:
+                _, _, bandname, _ = item
+                print(bandname, file=f)
+    elif command == 'generate':
+        output_filename = extra_args.pop(0) if extra_args else 'out.ics'
+        filter_filename = extra_args.pop(0) if extra_args else None
+        filtered_bands = None
+        if filter_filename:
+            with open('filter.txt', 'r') as f:
+                filtered_bands = [line.strip() for line in f]
 
-    filtered_bands = []
-    if len(sys.argv) == 4:
-        with open('filter.txt', 'r') as f:
-            for line in f:
-                filtered_bands.append(line.split('\n')[0])
+        cal = calendar(data, filtered_bands)
 
-    cal = calendar(data, filtered_bands)
+        with open(output_filename, 'wb') as f:
+            write_cal(f, cal)
 
-    with open(sys.argv[2], 'wb') as f:
-        write_cal(f, cal)

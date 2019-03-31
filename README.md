@@ -11,7 +11,7 @@ pip install -r requirements.txt
 ## Running:
 
 ```bash
-./mkcal.py running-order.html out.ics
+./mkcal.py running-order.html generate out.ics
 ```
 
 This will download the HTML file from the wacken website, save it to `running-order.html`, parse it,
@@ -23,7 +23,7 @@ and output an iCalendar file to `out.ics`. You can import that file into Google 
 First, edit the filter.txt file to contain only bands you wish to have added to your calendar. Then, pass filter.txt as an additional parameter when running mkcal.py.
 
 ```bash
-./mkcal.py running-order.html out.ics filter.txt
+./mkcal.py running-order.html generate out.ics filter.txt
 ```
 
 A complete list of bands can be copied from complete_bandslist.txt into filter. If you need to rebuild the bandlist, simply run the following command:
