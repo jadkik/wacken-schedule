@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import uuid
 import sys
 import re
 import shutil
+import itertools
 from collections import defaultdict
 
 import arrow
@@ -14,7 +16,7 @@ from icalendar import Calendar, Event
 from bs4 import BeautifulSoup, NavigableString
 
 
-def main(f):
+def main_2018(f):
     soup = BeautifulSoup(f, "html.parser")
 
     href_days = {x.attrs['href'][-6:]: x.text for x in soup.select('a[href*="https://www.wacken.com/en/bands/running-order/#roday"]')} # noqa
@@ -57,6 +59,30 @@ def main(f):
 
     return [(startdt, enddt, bandname, stages[stage]) for startdt, enddt, bandname, stage in data] # noqa
 
+def mainiter_2019(f):
+    data = json.load(f)
+
+    utc = pytz.utc
+    tzinfo = 'Europe/Berlin'
+    convert_to_utc = True
+
+    for event in data['events']:
+        date_start = arrow.get(int(event['dateStart']), tzinfo=utc).to(tzinfo)
+        date_end = arrow.get(int(event['dateEnd']), tzinfo=utc).to(tzinfo)
+        time_start = arrow.get(event['start'], 'HH:mm')
+        time_end = arrow.get(event['end'], 'HH:mm')
+        start = date_start.replace(hour=time_start.hour, minute=time_start.minute)
+        end = date_end.replace(hour=time_end.hour, minute=time_end.minute)
+        if convert_to_utc:
+            start = start.to(utc)
+            end = end.to(utc)
+        stage = event['stage']['title']
+        bandname = ' - '.join(artist['title'] for artist in event['artists']) or event['title'] or event['performance']['title']
+        assert bandname, repr(event)
+        yield (start, end, bandname, stage)
+
+def main_2019(f):
+    return list(mainiter_2019(f))
 
 def calendar(data, filtered_bands):
     cal = Calendar()
@@ -67,7 +93,7 @@ def calendar(data, filtered_bands):
     now = arrow.get().datetime
 
     COLORS = 'yellow green red blue aqua lime olive navy white maroon fuchsia teal silver gray'.split() # noqa
-    itercolors = iter(COLORS)
+    itercolors = itertools.cycle(COLORS)
     colormap = defaultdict(lambda: next(itercolors))
 
     if filtered_bands is None:
@@ -104,12 +130,21 @@ def write_cal(f, cal):
     f.write(cal.to_ical())
 
 
-def download(f):
+def download_2018(f):
     r = requests.get('https://www.wacken.com/en/bands/running-order/', stream=True) # noqa
     r.raise_for_status()
     r.raw.decode_content = True
     shutil.copyfileobj(r.raw, f)
 
+
+def download_2019(f):
+    r = requests.get('https://www.wacken.com/en/program/complete-running-order/?type=1541083945&tx_woamanager_pi3%5Bfestival%5D=1&tx_woamanager_pi3%5Baction%5D=show&tx_woamanager_pi3%5Bcontroller%5D=FestivalJson&cHash=39f2661563d0203edf2cb3f3c7a4f534', stream=True) # noqa
+    r.raise_for_status()
+    r.raw.decode_content = True
+    shutil.copyfileobj(r.raw, f)
+
+main = main_2019
+download = download_2019
 
 if __name__ == '__main__':
     html_filename, command, *extra_args = sys.argv[1:]
